@@ -241,3 +241,5 @@ id3_tree_object.predict(test_data, test_feature_name)
     ['no', 'no', 'yes']
 
 
+
+## 模型的剪枝尚未编写，后面会继续更新
