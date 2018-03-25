@@ -125,7 +125,7 @@ class NaiveBayesClassifier():
         self.lambd = lambd
         self.vocabs = None
         self.prior_prob = None
-        self.conditional_y_prob = None
+        self.conditional_prob = None
     
     def fit(self, data_x, data_y):
         """训练，为了计算先验概率与条件概率"""
@@ -142,7 +142,7 @@ class NaiveBayesClassifier():
         self.prior_prob = {}
         for cate in set(data_y):
             # 采用贝叶斯估计
-            prior_prob[cate] = (data_y.count(cate) + self.lambd) / (len(data_y) + cate_num_k * self.lambd)
+            self.prior_prob[cate] = (data_y.count(cate) + self.lambd) / (len(data_y) + cate_num_k * self.lambd)
         
         # 将数据按照类别不同划分为多个组
         group_data = {} 
@@ -151,53 +151,58 @@ class NaiveBayesClassifier():
             for idx, example_label in enumerate(data_y):
                 if example_label == cate:
                     sub_data_x.append(data_vec[idx])
-            group_data[cate] = np.asarray(sub_data)
+            group_data[cate] = np.asarray(sub_data_x)
         
         # 计算每个类别的特征的条件概率
         print("开始计算条件概率...")
-        self.conditional_y_prob = {}
+        # 所有类别下所有特征的不同取值的条件概率。
+        self.conditional_prob = {}
         for cate in set(data_y):
-            cate_data = group_data[cate]
-            
-            # 计算某类子数据集中 每个特征的 取值个数 Sj
-            features_values_num_count = np.zeros(cate_data.shape[1])            
-            for column in range(cate_data.shape[1]):
-                feature_value = cate_data[:, column]
-                featrue_value_num = len(collections.Counter(featrue_value))
-                features_values_num_count[column] = featrue_value_num
-            
+            cate_data = group_data[cate]  
             # 某类子数据集的样本个数
             num_cate = cate_data.shape[0]
-            cate_data_conditional_y_prob = (np.sum(cate_data, axis=0) + self.lambd) / (num_cate + features_values_num_count * self.lambd)
-            
-            self.conditional_y_prob[cate] = cate_data_conditional_y_prob
          
+            feature_one_cond_prob = (np.sum(cate_data, axis=0) + self.lambd) / (num_cate + np.array([2] * cate_data.shape[1]) * self.lambd)
+            feature_zero_cond_prob = (np.array([cate_data.shape[0]] * cate_data.shape[1]) - np.sum(cate_data, axis=0)) / (num_cate + np.array([2] * cate_data.shape[1]) * self.lambd)
+                
+            self.conditional_prob[cate] = [feature_zero_cond_prob, feature_one_cond_prob]
         stop_time = time.time()
         print("训练结束，耗时：{0} 秒".format(str(stop_time-start_time)))
         
-        return self.prior_prob, self.conditional_y_prob
+        return self.prior_prob, self.conditional_prob
         
     
     def predict(self, data_test):
         """预测，在新的数据集上"""
         
-        if self.prior_prob is None or self.conditional_y_prob is None or self.vocabs is None:
+        if self.prior_prob is None or self.conditional_prob is None or self.vocabs is None:
             raise NameError("模型未训练，没有可用的参数")
         test_data_vec = self.convert_data_to_vec(data_test, self.vocabs)
         
         # 测试集在每个类别上的后验概率
         test_cate_prob = np.zeros((test_data_vec.shape[0], len(self.prior_prob)))
         
-        idx = 0
+        cate_idx = 0
         # 创建一个类别名称的列表，用于之后对结果的索引
         cates_name = []
         # 计算测试集每个样本在每个类别上的后验概率
         for cate in self.prior_prob.keys():
             cate_prior_prob = self.prior_prob[cate]
-            cate_conditional_y_prob = self.conditional_y_prob[cate]           
-            test_cate_prob[:, idx] = cate_prior_prob * np.multiply.reduce(test_data_vec * cate_conditional_y_prob, axis=1)
-            cates_name.append(cate)
-            idx += 1
+            cate_features_conditional_prob = self.conditional_prob[cate]
+            
+            cate_test_data_cond_prob = []
+            
+            for example in test_data_vec:
+                example_feature_prob = 0.0
+                for idx, feature_value in enumerate(example.tolist()):
+                    example_feature_prob += cate_features_conditional_prob[int(feature_value)][idx]
+                    
+                cate_test_data_cond_prob.append(example_feature_prob)
+            log_cate_union_prob = np.log(np.asarray(cate_test_data_cond_prob) + cate_prior_prob)
+            test_cate_prob[:, cate_idx] = log_cate_union_prob
+            cates_name.append(cate)        
+            cate_idx += 1
+            
         # 取后验概率最大的索引
         argmax_idx = np.argmax(test_cate_prob, axis=1)
         # 索引出类别名称
@@ -220,7 +225,6 @@ class NaiveBayesClassifier():
                 if word in vocabs:
                     data_vec[row][column] = 1
         return data_vec
-    
                     
 ```
 
@@ -232,13 +236,12 @@ NBClassifier = NaiveBayesClassifier(1.0)
 
 
 ```python
-NBClassifier.fit(X_train, Y_train)
+prior_prob, conditional_prob = NBClassifier.fit(X_train[0:2000], Y_train.tolist()[0:2000])
 ```
 
     开始构建词表...
+    生成训练数据矩阵
+    开始计算先验概率...
+    开始计算条件概率...
+    训练结束，耗时：435.9030749797821 秒
     
-
-
-```python
-predicted_result = NBClassifier.predict(X_test)
-```
