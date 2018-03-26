@@ -67,15 +67,8 @@ news = fetch_20newsgroups(data_home="./data/", subset='all')
 news.data[0]
 ```
 
-
-
-
-    "From: Mamatha Devineni Ratnam <mr47+@andrew.cmu.edu>\nSubject: Pens fans reactions\nOrganization: Post Office, Carnegie Mellon, Pittsburgh, PA\nLines: 12\nNNTP-Posting-Host: po4.andrew.cmu.edu\n\n\n\nI am sure some bashers of Pens fans are pretty confused about the lack\nof any kind of posts about the recent Pens massacre of the Devils. Actually,\nI am  bit puzzled too and a bit relieved. However, I am going to put an end\nto non-PIttsburghers' relief with a bit of praise for the Pens. Man, they\nare killing those Devils worse than I thought. Jagr just showed you why\nhe is much better than his regular season stats. He is also a lot\nfo fun to watch in the playoffs. Bowman should let JAgr have a lot of\nfun in the next couple of games since the Pens are going to beat the pulp out of Jersey anyway. I was very disappointed not to see the Islanders lose the final\nregular season game.          PENS RULE!!!\n\n"
-
-
-
 ***
-## 构建一个辅助函数用于处理文本中的符号，并切词
+## 构建一些辅助函数用于文本处理
 
 
 ```python
@@ -87,6 +80,24 @@ def process_text(data):
         example = re.sub(r"\W", " ", example)
         processed_data.append(example.lower().split())
     return processed_data
+
+# 生成词典
+def generate_vocab(data_x):
+    """生成词表"""
+    vocabs = set([])
+    for example in data_x:
+        vocabs = vocabs | set(example)
+    return list(vocabs)
+
+# 文本转换为向量
+def convert_data_to_vec(data_x, vocabs):
+    """将文本数据集转换为向量，得到数据集矩阵，矩阵高为文本个数，宽为词汇表大小"""
+    data_vec = np.zeros((len(data_x), len(vocabs)))
+    for row, example in enumerate(data_x):
+        for column, word in enumerate(example):
+            if word in vocabs:
+                data_vec[row][column] = 1
+    return data_vec
 ```
 
 ***
@@ -103,17 +114,26 @@ X_train, X_test, Y_train, Y_test = train_test_split(news.data, news.target, test
 ```
 
 
-
-
-    ((14134, 14134), (4712, 4712))
-
-
-
-
 ```python
 # 预处理文本
 X_train = process_text(X_train)
 X_test = process_text(X_test)
+
+vocabs = generate_vocab(X_train[0:2000])
+
+X_train_sub = convert_data_to_vec(X_train[0:2000], vocabs)
+X_test_sub = convert_data_to_vec(X_test[0:20], vocabs)
+```
+
+
+```python
+X_train_sub
+```
+
+
+```python
+Y_train_sub = Y_train[0:2000]
+Y_test_sub = Y_test[0:20]
 ```
 
 ## 创建朴素贝叶斯模型类
@@ -121,28 +141,29 @@ X_test = process_text(X_test)
 
 ```python
 class NaiveBayesClassifier():
-    def __init__(self, lambd):
+    def __init__(self, lambd=1.0):
         self.lambd = lambd
-        self.vocabs = None
         self.prior_prob = None
         self.conditional_prob = None
     
     def fit(self, data_x, data_y):
         """训练，为了计算先验概率与条件概率"""
-        start_time = time.time()
-        print("开始构建词表...")
-        self.vocabs = self.generate_vocab(data_x)
-        print("生成训练数据矩阵")
-        data_vec = self.convert_data_to_vec(data_x, self.vocabs)
-        
-        cate_num_k = len(set(data_y))
+        start_time = time.time()      
         
         # 计算先验概率
         print("开始计算先验概率...")
+        cate_num_k = len(set(data_y))
         self.prior_prob = {}
         for cate in set(data_y):
             # 采用贝叶斯估计
-            self.prior_prob[cate] = (data_y.count(cate) + self.lambd) / (len(data_y) + cate_num_k * self.lambd)
+            self.prior_prob[cate] = (data_y.tolist().count(cate) + self.lambd) / (len(data_y) + cate_num_k * self.lambd)
+        
+        # 对训练集的每个特征的取值进行统计
+        every_feature_count = []
+        for feature_idx in range(data_x.shape[1]):
+            feature_value = data_x[:, feature_idx]
+            feature_diff_value_count = collections.Counter(feature_value)
+            every_feature_count.append(feature_diff_value_count)
         
         # 将数据按照类别不同划分为多个组
         group_data = {} 
@@ -150,7 +171,7 @@ class NaiveBayesClassifier():
             sub_data_x = []
             for idx, example_label in enumerate(data_y):
                 if example_label == cate:
-                    sub_data_x.append(data_vec[idx])
+                    sub_data_x.append(data_x[idx])
             group_data[cate] = np.asarray(sub_data_x)
         
         # 计算每个类别的特征的条件概率
@@ -161,11 +182,23 @@ class NaiveBayesClassifier():
             cate_data = group_data[cate]  
             # 某类子数据集的样本个数
             num_cate = cate_data.shape[0]
-         
-            feature_one_cond_prob = (np.sum(cate_data, axis=0) + self.lambd) / (num_cate + np.array([2] * cate_data.shape[1]) * self.lambd)
-            feature_zero_cond_prob = (np.array([cate_data.shape[0]] * cate_data.shape[1]) - np.sum(cate_data, axis=0)) / (num_cate + np.array([2] * cate_data.shape[1]) * self.lambd)
+            
+            every_feature_cond_prob = []    
+            for idx in range(cate_data.shape[1]):
+                feature_count = every_feature_count[idx]
+                cate_feature_value = cate_data[:, idx]
+                sj = len(feature_count)
                 
-            self.conditional_prob[cate] = [feature_zero_cond_prob, feature_one_cond_prob]
+                feature_cond_prob = {}
+                for value in feature_count.keys():
+                    ajl_count = cate_feature_value.tolist().count(value)
+                    ajl_on_cate_prob = (ajl_count + self.lambd) / (num_cate + sj * self.lambd)                    
+                    feature_cond_prob[value] = ajl_on_cate_prob
+                    
+                every_feature_cond_prob.append(feature_cond_prob)
+                
+            self.conditional_prob[cate] = every_feature_cond_prob
+            
         stop_time = time.time()
         print("训练结束，耗时：{0} 秒".format(str(stop_time-start_time)))
         
@@ -175,12 +208,11 @@ class NaiveBayesClassifier():
     def predict(self, data_test):
         """预测，在新的数据集上"""
         
-        if self.prior_prob is None or self.conditional_prob is None or self.vocabs is None:
+        if self.prior_prob is None or self.conditional_prob is None:
             raise NameError("模型未训练，没有可用的参数")
-        test_data_vec = self.convert_data_to_vec(data_test, self.vocabs)
         
         # 测试集在每个类别上的后验概率
-        test_cate_prob = np.zeros((test_data_vec.shape[0], len(self.prior_prob)))
+        test_cate_prob = np.zeros((data_test.shape[0], len(self.prior_prob)))
         
         cate_idx = 0
         # 创建一个类别名称的列表，用于之后对结果的索引
@@ -188,17 +220,24 @@ class NaiveBayesClassifier():
         # 计算测试集每个样本在每个类别上的后验概率
         for cate in self.prior_prob.keys():
             cate_prior_prob = self.prior_prob[cate]
-            cate_features_conditional_prob = self.conditional_prob[cate]
+            every_feature_cond_prob = self.conditional_prob[cate]   # 是个列表
             
+            # 所有样本的概率
             cate_test_data_cond_prob = []
             
-            for example in test_data_vec:
-                example_feature_prob = 0.0
+            # 对每个样本进行计算
+            for example in data_test:
+                example_feature_prob = []
                 for idx, feature_value in enumerate(example.tolist()):
-                    example_feature_prob += cate_features_conditional_prob[int(feature_value)][idx]
-                    
+                    feature_cond_prob = every_feature_cond_prob[idx]
+                    if feature_value in feature_cond_prob.keys():                 
+                        example_feature_prob.append(feature_cond_prob[feature_value])
+                    else:
+                        example_feature_prob.append(1.0)
                 cate_test_data_cond_prob.append(example_feature_prob)
-            log_cate_union_prob = np.log(np.asarray(cate_test_data_cond_prob) + cate_prior_prob)
+            
+            # 求所有样本在 cate 类上的对数联合概率              
+            log_cate_union_prob = np.sum(np.log(np.asarray(cate_test_data_cond_prob)), axis=1) + np.log(cate_prior_prob)
             test_cate_prob[:, cate_idx] = log_cate_union_prob
             cates_name.append(cate)        
             cate_idx += 1
@@ -209,22 +248,6 @@ class NaiveBayesClassifier():
         test_cate_result = [cates_name[idx] for idx in argmax_idx]
         
         return test_cate_result
-    
-    def generate_vocab(self, data_x):
-        """生成词表"""
-        vocabs = set([])
-        for example in data_x:
-            vocabs = vocabs | set(example)
-        return list(vocabs)
-    
-    def convert_data_to_vec(self, data_x, vocabs):
-        """将文本数据集转换为向量，得到数据集矩阵，矩阵高为文本个数，宽为词汇表大小"""
-        data_vec = np.zeros((len(data_x), len(vocabs)))
-        for row, example in enumerate(data_x):
-            for column, word in enumerate(example):
-                if word in vocabs:
-                    data_vec[row][column] = 1
-        return data_vec
                     
 ```
 
@@ -236,12 +259,10 @@ NBClassifier = NaiveBayesClassifier(1.0)
 
 
 ```python
-prior_prob, conditional_prob = NBClassifier.fit(X_train[0:2000], Y_train.tolist()[0:2000])
+prior_prob, conditional_prob = NBClassifier.fit(X_train_sub, Y_train_sub)
 ```
 
-    开始构建词表...
-    生成训练数据矩阵
-    开始计算先验概率...
-    开始计算条件概率...
-    训练结束，耗时：435.9030749797821 秒
-    
+
+```python
+Y_test_sub_predict = NBClassifier.predict(X_test_sub)
+```
