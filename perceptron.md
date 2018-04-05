@@ -53,7 +53,9 @@ $$ b\leftarrow b+\eta y_i $$
 * 当训练数据集线性可分的时候，感知机学习算法是收敛的，感知机算法在训练数据集上的误分类次数 k 满足不等式:
 $$ k\leq (\frac{R}{\gamma})^2  $$
 具体证明可见 <font color=blue>李航《统计学习方法》或 林轩田《机器学习基石》</font>。
-* 当训练当训练数据集线性可分的时候，感知机学习算法存在无穷多哥街，其解由于不同的初值或不同的迭代顺序而可能不同，即存在多个分离超平面能把数据集分开。
+
+* 当训练当训练数据集线性可分的时候，感知机学习算法存在无穷多个解，其解由于不同的初值或不同的迭代顺序而可能不同，即存在多个分离超平面能把数据集分开。
+
 * 感知机学习算法简单易求解，但一般的感知机算法不能解决异或等线性不可分的问题。
 
 ***
@@ -133,9 +135,9 @@ class PerceptronRaw():
             plt.ylabel("feature_2")
             plt.xlim((2, 10))
             plt.ylim((-12, 0))
-            plt.title("Dataset and Decision in Training")
+            plt.title("Dataset and Decision in Training(Raw)")
             plt.scatter(x_train[:, 0], x_train[:, 1], c=y_train, s=30, cmap=plt.cm.Paired)
-            plt.plot(x_hyperplane, y_hpyerplane, color='g', label='Decision')
+            plt.plot(x_hyperplane, y_hpyerplane, color='g', label='Decision_Raw')
             plt.legend(loc='upper left')
             plt.show()
         
@@ -176,8 +178,122 @@ model_raw.fit(X_train, y_train)
 y_predict = model_raw.predict(X_test)
 
 accuracy = np.sum(y_predict == y_test) / y_predict.shape[0]
-print("在测试集上的准确率: {0}".format(accuracy))
+print("原始形式模型在测试集上的准确率: {0}".format(accuracy))
 ```
 
-    在测试集上的准确率: 1.0
+    原始形式模型在测试集上的准确率: 1.0
+    
+
+***
+## 感知机（采用对偶形式）
+创建感知机模型的对偶形式的类，并在训练集上训练，测试集上简单测试。
+
+
+```python
+class PerceptronDuality():
+    def __init__(self):
+        self.alpha = None
+        self.bias = None
+        self.W = None
+    def fit(self, x_train, y_train, learning_rate=1, n_iters=100, plot_train=True):
+        print("开始训练...")
+        num_samples, num_features = x_train.shape
+        self.alpha = np.zeros((num_samples,))
+        self.bias = 0
+        
+        # 计算 Gram 矩阵
+        gram = np.dot(x_train, x_train.T)
+
+        while True:
+            error_count = 0
+            for idx in range(num_samples):
+                inner_product = gram[idx]
+                y_idx = y_train[idx]
+                distance = y_idx * (np.sum(self.alpha * y_train * inner_product) + self.bias)
+                # 如果有分类错误点，修正 alpha 和 bias，跳出本层循环，重新遍历数据计算，开始新的循环
+                if distance <= 0:
+                    error_count += 1
+                    self.alpha[idx] = self.alpha[idx] + learning_rate
+                    self.bias = self.bias + learning_rate * y_idx
+                    break  
+            # 数据没有错分类点，跳出 while 循环
+            if error_count == 0:
+                break
+        self.W = np.sum(self.alpha * y_train * x_train.T, axis=1)       
+        print("训练结束")
+        
+        # 绘制训练结果部分
+        if plot_train is True:
+            x_hyperplane = np.linspace(2, 10, 8)           
+            slope = -self.W[0]/self.W[1]
+            intercept = -self.bias/self.W[1]
+            y_hpyerplane = slope * x_hyperplane + intercept
+            
+            plt.xlabel("feature_1")
+            plt.ylabel("feature_2")
+            plt.xlim((2, 10))
+            plt.ylim((-12, 0))
+            plt.title("Dataset and Decision in Training(Duality)")
+            plt.scatter(x_train[:, 0], x_train[:, 1], c=y_train, s=30, cmap=plt.cm.Paired)
+            plt.plot(x_hyperplane, y_hpyerplane, color='g', label='Decision_Duality')
+            plt.legend(loc='upper left')
+            plt.show()
+            
+    def predict(self, x):
+        if self.alpha is None or self.bias is None:
+            raise NameError("模型未训练")
+        y_predicted = np.sign(np.dot(x, self.W) + self.bias)
+        return y_predicted
+```
+
+
+```python
+model_duality = PerceptronDuality()
+```
+
+
+```python
+model_duality.fit(X_train, y_train)
+```
+
+    开始训练...
+    训练结束
+    
+
+
+![png](output_12_1.png)
+
+
+
+```python
+y_predict_duality = model_duality.predict(X_test)
+accuracy_duality = np.sum(y_predict_duality == y_test) / y_test.shape[0]
+
+print("对偶形式模型在测试集上的准确率: {0}".format(accuracy_duality))
+```
+
+    对偶形式模型在测试集上的准确率: 1.0
+    
+
+***
+## 比较两个模型
+分别从原始模型和对偶模型中获取参数，可以看出，这两个模型的分离超平面都不同，但是都能正确进行分类，这验证了总结中的结论。
+
+当训练当训练数据集线性可分的时候，感知机学习算法存在无穷多个解，其解由于不同的初值或不同的迭代顺序而可能不同，即存在多个分离超平面能把数据集分开。
+
+
+
+```python
+print("原始形式模型参数:")
+print("W: {0}, bias: {1}".format(model_raw.W, model_raw.bias))
+print()
+print("对偶形式模型参数:")
+print("W: {0}, bias: {1}".format(model_duality.W, model_duality.bias))
+```
+
+    原始形式模型参数:
+    W: [-1.07796999 -3.05384787], bias: -11.700000000000031
+    
+    对偶形式模型参数:
+    W: [-25.35285228 -70.71533848], bias: -268
     
