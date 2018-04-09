@@ -7,6 +7,7 @@ The implementation of these algorithms is mainly to deepen the understanding of 
 * [Linear_Regressiong.ipynb](./Linear_Regression.ipynb) | [Linear Regression.md](./Linear_Regression.md) 
 * [ID3_decision_tree.ipynb](./ID3_decision_tree.ipynb) | [ID3_decision_tree.md](./ID3_decision_tree.md)
 * [naive_bayes.ipynb](./naive_bayes.ipynb) | [naive_bayes.md](./naive_bayes.md)
+* [K-NN.inpynb](./KNN.ipynb)
 
 The code will continue to be updated to fix the deficiency. If you have a better way of writing or have found my mistake, please let me know.
 
