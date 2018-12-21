@@ -1,4 +1,3 @@
-
 ## 决策树分类算法
 决策树学习包括3个步骤：
 
@@ -12,7 +11,6 @@
 
 决策树的修剪往往通过极小化决策树的整体损失函数或代价函数进行，目的是为了减小决策树的过拟合问题，增大其泛化能力
 
-***
 ## 信息熵
 熵是表示随机变量不确定性的度量，设 X 是一个取有限个值的离散随机变量，其概率分布为：
 $$ P(X = x_i) = p_i,   i=1,2,...,n $$
@@ -23,23 +21,20 @@ $$ H(X) = -\sum_{i=1}^{n}p_ilogp_i $$
 熵越大，随机变量的不确定性就越大，且
 $$ 0\leq H(p)\leq logn $$
 
-***
 ## 条件熵
-条件熵 & H(Y|X) & 表示在已知随机变量X的条件下随机变量Y的不确定性，定义为X给定的条件下Y的条件概率分布的熵对X的数学期望
+条件熵 $ H(Y|X) $ 表示在已知随机变量X的条件下随机变量Y的不确定性，定义为X给定的条件下Y的条件概率分布的熵对X的数学期望
 $$ H(Y|X) = \sum_{i=1}^{n}p_iH(Y|X=x_i) $$
 
-这里，& p_i = p(X=x_i), i=1,2,...,n &
+这里，$ p_i = p(X=x_i), i=1,2,...,n $
 
-***
 ## 信息增益
 信息增益表示得知特征X的信息而使得Y的信息的不确定性减少的程度
 
-特征A对训练数据集D的信息增益g(D,A),定义为集合D的经验熵H(D)与特征A给定的条件下D的敬仰条件熵H(D|A）之差，即：
+特征A对训练数据集D的信息增益g(D,A),定义为集合D的经验熵H(D)与特征A给定的条件下D的经验条件熵H(D|A）之差，即：
 $$ g(D,A)=H(D)-H(D|A) $$
 
 一般的，熵H(Y)与条件熵H(Y|X)的差称为互信息，决策树学习中的信息增益等价于训练数据中类与特征的互信息
 
-***
 ## 信息增益比
 使用信息增益选择特征会使算法在选择特征时更倾向于选择特征取值个数多的特征，为了解决这一问题，可以采用信息赠增益比
 
@@ -49,18 +44,14 @@ $$ H_A(D) = -\sum_{i=1}^{n}\frac{|D_i|}{|D|}log_2\frac{|D_i|}{|D|} $$
 n是特征A取值的个数
 
 
-
-***
 ## 创建决策树模型类
 该决策树生成算法使用 ID3 算法
 
-
-```python
+```{.python .input}
 import numpy as np
 ```
 
-
-```python
+```{.python .input}
 class ID3_Decision_Tree():
     def __init__(self):
         self.ID3_Tree = None
@@ -190,14 +181,12 @@ class ID3_Decision_Tree():
 
 ## 简单测试
 
-
-```python
+```{.python .input}
 # 实例化模型
 id3_tree_object = ID3_Decision_Tree()
 ```
 
-
-```python
+```{.python .input}
 # 创建训练集
 data_set = [[1, 1, 'yes'],
             [1, 1, 'yes'],
@@ -207,13 +196,10 @@ data_set = [[1, 1, 'yes'],
 feature_name = ['color', 'weight']
 ```
 
-
-```python
+```{.python .input}
 # 训练生成决策树
 id3_tree_object.fit(data_set, feature_name)
 ```
-
-
 
 
     {'color': {0: 'no', 1: {'weight': {0: 'no', 1: 'yes'}}}}
@@ -221,7 +207,8 @@ id3_tree_object.fit(data_set, feature_name)
 
 
 
-```python
+
+```{.python .input}
 # 创建测试集
 test_data = [[0, 0],
              [0, 1],
@@ -229,16 +216,14 @@ test_data = [[0, 0],
 test_feature_name = ['color', 'weight']
 ```
 
-
-```python
+```{.python .input}
 # 使用之前的决策树进行分类
 id3_tree_object.predict(test_data, test_feature_name)
 ```
 
 
-
-
     ['no', 'no', 'yes']
+
 
 
 
